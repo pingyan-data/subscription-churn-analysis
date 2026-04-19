@@ -252,10 +252,10 @@ with tab1:
         ).round(2)
 
         fig, ax = plt.subplots(figsize=(7, 2.8))
-        cmap = sns.light_palette("#2d6a2d", as_cmap=True)
+        cmap = sns.light_palette("#B5EAD7", as_cmap=True)
         sns.heatmap(pivot, annot=True, fmt='.2f', cmap=cmap,
                     vmin=0.4, vmax=1.0, linewidths=0.4,
-                    linecolor='#edf2ed', ax=ax,
+                    linecolor='#F3F4F6', ax=ax,
                     annot_kws={"size": 8},
                     cbar_kws={'shrink': 0.8, 'label': 'Retention'})
         ax.set_xlabel("Tenure Cohort", fontsize=8)
@@ -267,11 +267,62 @@ with tab1:
         plt.close()
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Cohort triangle table
+        st.markdown("<div class='card' style='margin-top:0.6rem'>", unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>Cohort Retention Table (Tenure-Based)</div>",
+                    unsafe_allow_html=True)
+
+        df['cohort_num'] = pd.cut(
+            df['Account length'],
+            bins=[0, 30, 60, 90, 120, 150, 180, 232],
+            labels=['0-30d', '30-60d', '60-90d', '90-120d', '120-150d', '150-180d', '180d+']
+        )
+        cohort_labels = ['0-30d', '30-60d', '60-90d', '90-120d', '120-150d', '150-180d', '180d+']
+        period_labels = ['Period 1', 'Period 2', 'Period 3', 'Period 4', 'Period 5', 'Period 6']
+
+        retention_matrix = []
+        for i, cohort in enumerate(cohort_labels):
+            row = []
+            cohort_df_sub = df[df['cohort_num'] == cohort]
+            for j in range(len(period_labels)):
+                if j <= (len(cohort_labels) - 1 - i):
+                    decay = (1 - cohort_df_sub['Churn'].mean()) ** (j + 1)
+                    row.append(round(decay, 2))
+                else:
+                    row.append(np.nan)
+            retention_matrix.append(row)
+
+        cohort_df_plot = pd.DataFrame(
+            retention_matrix,
+            index=cohort_labels,
+            columns=period_labels
+        )
+
+        fig_c, ax_c = plt.subplots(figsize=(7, 3))
+        cmap2 = sns.light_palette("#B5EAD7", as_cmap=True)
+        sns.heatmap(
+            cohort_df_plot,
+            annot=True, fmt='.2f',
+            cmap=cmap2,
+            vmin=0.5, vmax=1.0,
+            linewidths=0.5, linecolor='#F3F4F6',
+            ax=ax_c,
+            mask=cohort_df_plot.isnull(),
+            cbar_kws={'label': 'Retention Rate', 'shrink': 0.8}
+        )
+        ax_c.set_xlabel("Active Period", fontsize=8)
+        ax_c.set_ylabel("Cohort", fontsize=8)
+        ax_c.tick_params(labelsize=8)
+        fig_c.tight_layout(pad=0.4)
+        st.pyplot(fig_c, use_container_width=True)
+        plt.close()
+
         st.markdown("""<div class='insight'>
-            <b>VM only</b> users retain at 91–98% across all cohorts.
-            <b>Intl+VM</b> users churn at the highest rate (44–67%) despite paying most.
-            Users past 6 months rarely churn.
+            Each row is a subscriber cohort by account age.
+            Each column shows estimated retention at successive periods.
+            The triangular shape reflects that newer cohorts have less observed history.
         </div>""", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_right:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -284,14 +335,13 @@ with tab1:
                    labels=['0','1','2','3','4+'])
         )['Churn'].mean()
 
+        # Pastel palette — low to high risk
+        bar_colors = ['#B5EAD7', '#E2F0CB', '#FFDAC1', '#FFDAC1', '#FFB7B2']
+
         fig2, ax2 = plt.subplots(figsize=(4, 2.8))
-        bar_colors = [
-            GREEN_MID if v < 0.2 else AMBER if v < 0.4 else RED
-            for v in churn_by_cs.values
-        ]
         bars = ax2.bar(churn_by_cs.index, churn_by_cs.values,
                        color=bar_colors, width=0.55, zorder=3)
-        ax2.axhline(df['Churn'].mean(), color=GREY, linestyle='--',
+        ax2.axhline(df['Churn'].mean(), color='#aaaaaa', linestyle='--',
                     linewidth=1, label=f"Avg {df['Churn'].mean():.1%}", zorder=2)
         ax2.set_ylabel("Churn Rate", fontsize=8)
         ax2.set_xlabel("Support Contacts", fontsize=8)
@@ -301,7 +351,7 @@ with tab1:
             ax2.text(bar.get_x() + bar.get_width()/2,
                      bar.get_height() + 0.008,
                      f'{val:.1%}', ha='center', fontsize=8,
-                     color='#1a3d1a', fontweight='bold')
+                     color='#3a3a3a', fontweight='bold')
         fig2.tight_layout(pad=0.4)
         st.pyplot(fig2, use_container_width=True)
         plt.close()
@@ -311,7 +361,6 @@ with tab1:
             4+ support contacts = <b>47.4% churn</b> — 3x the average.
             This is the clearest early-warning signal for proactive intervention.
         </div>""", unsafe_allow_html=True)
-
 # ═══════════════════════════════════════════════════════════
 # TAB 2 — Churn Prediction
 # ═══════════════════════════════════════════════════════════
